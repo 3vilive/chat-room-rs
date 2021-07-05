@@ -1,9 +1,12 @@
+use structopt::StructOpt;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use std::net::{SocketAddr};
 use tokio::sync::mpsc;
 use std::collections::HashMap;
+mod args;
 
+use args::Args;
 
 #[derive(Debug)]
 enum ClientCommand {
@@ -82,8 +85,9 @@ async fn manger(mut msg_rx: mpsc::Receiver<ClientMessage>) {
 
 #[tokio::main]
 async fn main() -> io::Result<()> {
-    let addr = "127.0.0.1:6381";
-    let listener = TcpListener::bind(addr).await?;
+    let args = Args::from_args();
+    let addr = format!("{}:{}", args.host, args.port);
+    let listener = TcpListener::bind(&addr).await?;
     println!("[server] listening at {}", addr);
 
     // spawn manager
