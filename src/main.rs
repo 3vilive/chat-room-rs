@@ -128,6 +128,7 @@ async fn process_socket(socket: TcpStream, addr: SocketAddr, msg_tx: mpsc::Sende
             match rd.read(&mut buf).await {
                 Ok(0) => {
                     // EOF
+                    msg_tx.send(ClientMessage::Leave(addr)).await.unwrap();
                     return
                 },
                 Ok(n) => {
@@ -170,8 +171,6 @@ async fn process_socket(socket: TcpStream, addr: SocketAddr, msg_tx: mpsc::Sende
 
     reader.await.unwrap();
     writer.await.unwrap();
-
-    msg_tx.send(ClientMessage::Leave(addr)).await.unwrap();
 
     Ok(())
 }
