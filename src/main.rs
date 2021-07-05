@@ -84,7 +84,7 @@ async fn manger(mut msg_rx: mpsc::Receiver<ClientMessage>) {
 async fn main() -> io::Result<()> {
     let addr = "127.0.0.1:6381";
     let listener = TcpListener::bind(addr).await?;
-    println!("listening at {}", addr);
+    println!("[server] listening at {}", addr);
 
     // spawn manager
     let (msg_tx, msg_rx) = mpsc::channel::<ClientMessage>(32);
@@ -108,7 +108,7 @@ async fn main() -> io::Result<()> {
 }
 
 async fn process_socket(socket: TcpStream, addr: SocketAddr, msg_tx: mpsc::Sender<ClientMessage>) -> io::Result<()> {
-    println!("accepted {}", addr);
+    println!("[server] accepted {}", addr);
 
     let (cmd_tx, mut cmd_rx) = mpsc::channel::<ClientCommand>(4);
 
@@ -129,7 +129,7 @@ async fn process_socket(socket: TcpStream, addr: SocketAddr, msg_tx: mpsc::Sende
                 Ok(0) => {
                     // EOF
                     msg_tx.send(ClientMessage::Leave(addr)).await.unwrap();
-                    return
+                    break
                 },
                 Ok(n) => {
                     // read buffer
@@ -148,10 +148,13 @@ async fn process_socket(socket: TcpStream, addr: SocketAddr, msg_tx: mpsc::Sende
                 },
                 Err(err) => {
                     println!("[client] {:?} read bytes error {:?}", addr.clone(), err);
-                    return
+                    msg_tx.send(ClientMessage::Leave(addr)).await.unwrap();
+                    break
                 }
             }
         }
+
+        println!("[client] close reader of {}", addr.clone())
     });
 
     // writer
@@ -162,11 +165,13 @@ async fn process_socket(socket: TcpStream, addr: SocketAddr, msg_tx: mpsc::Sende
                 SendText(text) => {
                     if let Err(err) = wr.write(text.as_bytes()).await {
                         println!("[client] {:?} write bytes error {:?}", addr.clone(), err);
-                        return 
+                        break
                     }
                 }
             }
         }
+
+        println!("[client] close writer of {}", addr.clone())
     });
 
     reader.await.unwrap();
