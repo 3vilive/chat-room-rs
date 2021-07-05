@@ -24,8 +24,10 @@ async fn manger(mut msg_rx: mpsc::Receiver<ClientMessage>) {
     use ClientMessage::*;
 
     let mut client_map = HashMap::new();
+    let mut client_nickname: HashMap<SocketAddr, String> = HashMap::new();
 
-    while let Some(msg) = msg_rx.recv().await {
+    
+    'msg_loop: while let Some(msg) = msg_rx.recv().await {
         match msg {
             Join(client, cmd_tx) => {
                 client_map.insert(client, cmd_tx);
@@ -43,16 +45,36 @@ async fn manger(mut msg_rx: mpsc::Receiver<ClientMessage>) {
                     if *c == client {
                         continue
                     }
+
+                    let nickname = client_nickname
+                        .get(&client)
+                        .map(|n| n.to_owned())
+                        .unwrap_or_else(|| format!("{}", client));
                     
-                    let text = format!("{}: {}", client, text);
+                    let text = format!("{}: {}", nickname, text);
                     cmd_tx.send(ClientCommand::SendText(text)).await.unwrap();
                 }
             },
             Command(client, commands) => {
+                let cmd_tx =  match client_map.get(&client) {
+                    Some(tx) => tx,
+                    None => continue 'msg_loop,
+                };
 
-            },
-            _ => {
-                println!("[manager] recv {:?}", msg);
+                let command = &commands[0];
+                let args = &commands[1..];
+
+                match command.as_str() {
+                    "/setnickname" if args.len() == 1 => {
+                        let nickname = args[0].clone();
+                        client_nickname.insert(client, nickname);
+                        cmd_tx.send(ClientCommand::SendText("ok\n".to_string())).await.unwrap();
+                    },
+                    _ => {
+                        let text = "invalid args or no match pattern\n".to_string();
+                        cmd_tx.send(ClientCommand::SendText(text)).await.unwrap();
+                    }
+                }
             },
         }
     }
